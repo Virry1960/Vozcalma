@@ -1,0 +1,72 @@
+<!-- Anxiety SOS – Voz NO (vanilla JS, sin React, voz femenina lenta) -->
+<!doctype html>
+<meta charset="utf-8" />
+<title>Anxiety SOS – Voz NO</title>
+<style>
+  body { font-family: system-ui, sans-serif; background:#f6f7fb; margin:0; }
+  .card { max-width: 720px; margin: 24px auto; background:#fff; border:1px solid #e5e7eb; border-radius:16px; padding:16px; }
+  .btn  { padding:10px 14px; border-radius:10px; border:1px solid #2563eb; background:#2563eb; color:#fff; cursor:pointer; }
+  .muted{ color:#64748b; font-size:14px; }
+</style>
+<div class="card">
+  <h2>Anxiety SOS – stemme</h2>
+  <p class="muted">Pantalla 3/6 (demo). Se leerá automáticamente en voz femenina y lenta.</p>
+  <button id="again" class="btn">Kjør igjen</button>
+  <div id="voiceInfo" class="muted" style="margin-top:8px"></div>
+</div>
+<script>
+(function(){
+  const INTRO   = "Ok, la oss lette på dette ubehaget…";
+  const GROUND  = "Se, lyt, berør: 5 ting du ser - 4 du kjenner med berøring - 3 du hører - 2 du lukter - 1 du smaker";
+  const FEMALE  = [/female/i,/standard[- ]?a/i,/wavenet[- ]?a/i,/hulda/i,/pia/i,/nora/i,/ingrid/i,/liv/i,/kari/i,/ida/i];
+  const MALE    = [/\bjon\b/i,/\bfinn\b/i,/male/i,/standard[- ]?b/i,/wavenet[- ]?b/i];
+
+  function voicesReady(timeout=3000){
+    return new Promise((resolve)=>{
+      const s = window.speechSynthesis;
+      if(!s){ resolve([]); return; }
+      const v = s.getVoices();
+      if(v && v.length){ resolve(v); return; }
+      let done=false;
+      const finish=()=>{ if(done) return; done=true; resolve(s.getVoices()||[]); };
+      const t=setTimeout(finish, timeout);
+      s.onvoiceschanged = ()=>{ clearTimeout(t); finish(); };
+    });
+  }
+  function pickNorwegianFemale(voices){
+    const isNO = v => (v.lang||"").toLowerCase().startsWith("no") || (v.lang||"").toLowerCase().startsWith("nb");
+    const no = (voices||[]).filter(isNO);
+    return no.find(v=>FEMALE.some(rx=>rx.test(v.name)))
+        || no.find(v=>!MALE.some(rx=>rx.test(v.name)))
+        || no[0] || null;
+  }
+  function speakNO(text, {rate=0.78, pitch=1.08, voice=null}={}){
+    if(!("speechSynthesis" in window)) return;
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = (voice?.lang || "no-NO");
+    u.rate = rate;            // más lento y apacible
+    u.pitch = pitch;          // tono suave
+    if(voice){
+      u.voice = voice;
+      if (MALE.some(rx=>rx.test(voice.name))) u.pitch = Math.max(u.pitch, 1.26); // suaviza si fuese masculina
+    }
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.speak(u);
+  }
+  function sequence(voice){
+    // intro → 2.8s → consigna (mismo rate/pitch)
+    speakNO(INTRO,  {rate:0.78, pitch:1.08, voice});
+    setTimeout(()=> speakNO(GROUND, {rate:0.78, pitch:1.08, voice}), 2800);
+  }
+
+  // init
+  (async function start(){
+    const info = document.getElementById("voiceInfo");
+    const voices = await voicesReady();
+    const v = pickNorwegianFemale(voices);
+    info.textContent = "Valgt stemme (auto): " + (v ? `${v.name} (${v.lang})` : "standard");
+    sequence(v);
+    document.getElementById("again").onclick = ()=> sequence(v);
+  })();
+})();
+</script>
